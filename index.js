@@ -20,8 +20,8 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
             const htmlContext = path.dirname(htmlPluginData.plugin.options.template.split('!')[1])
             let content = htmlPluginData.html
 
-            const linkMatchResult = content.match(linkRegex)
-            const scriptMatchResult = content.match(scriptRegex)
+            const linkMatchResult = content.match(linkRegex) || []
+            const scriptMatchResult = content.match(scriptRegex) || []
 
             linkMatchResult.forEach(link=>{
                 const $link = cheerio.load(link),

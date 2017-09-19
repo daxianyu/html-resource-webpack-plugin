@@ -27,13 +27,15 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
                 const $link = cheerio.load(link),
                     attr = $link('link').attr()
                 if(hasProtocal(attr.href)) return
-                if(attr.__raw) return
                 const linkFrom = path.resolve(htmlContext, attr.href)
                 const data = fs.readFileSync(linkFrom)
-
+                let outPathAndName = htmlPluginData.plugin.options.resourceName || '[name].[ext]'
+                outPathAndName = outPathAndName.replace('[type]', function () {
+                    return 'script'
+                })
                 const linkName = loaderUtils.interpolateName(
                     {resourcePath: linkFrom},
-                    htmlPluginData.plugin.options.resourceName || 'adfsf/[name][hash:6].[ext]',
+                    outPathAndName,
                     {content: data})
                 compilation.assets[linkName] = {
                     size: function () {
@@ -53,13 +55,15 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
                 const $script = cheerio.load(script),
                     attr = $script('script').attr()
                 if(hasProtocal(attr.src)) return
-                if(attr.__raw) return
                 const scriptFrom = path.resolve(htmlContext, attr.src)
                 const data = fs.readFileSync(scriptFrom)
-
+                let outPathAndName = htmlPluginData.plugin.options.resourceName || '[name].[ext]'
+                outPathAndName = outPathAndName.replace('[type]', function () {
+                    return 'css'
+                })
                 const scriptName = loaderUtils.interpolateName(
                     {resourcePath: scriptFrom},
-                    htmlPluginData.plugin.options.resourceName || 'adfsf/[name][hash:6].[ext]',
+                    outPathAndName,
                     {content: data})
 
                 compilation.assets[scriptName] = {

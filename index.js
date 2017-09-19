@@ -32,7 +32,7 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
                 const data = fs.readFileSync(linkFrom)
                 let outPathAndName = htmlPluginData.plugin.options.resourceName || '[name].[ext]'
                 outPathAndName = outPathAndName.replace('[type]', function () {
-                    return 'script'
+                    return 'css'
                 })
                 const linkName = loaderUtils.interpolateName(
                     {resourcePath: linkFrom},
@@ -61,7 +61,7 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
                 const data = fs.readFileSync(scriptFrom)
                 let outPathAndName = htmlPluginData.plugin.options.resourceName || '[name].[ext]'
                 outPathAndName = outPathAndName.replace('[type]', function () {
-                    return 'css'
+                    return 'style'
                 })
                 const scriptName = loaderUtils.interpolateName(
                     {resourcePath: scriptFrom},

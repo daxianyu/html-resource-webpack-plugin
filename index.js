@@ -27,6 +27,7 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
                 const $link = cheerio.load(link),
                     attr = $link('link').attr()
                 if(hasProtocal(attr.href)) return
+                if(attr.__raw || attr.__raw==='') return
                 const linkFrom = path.resolve(htmlContext, attr.href)
                 const data = fs.readFileSync(linkFrom)
                 let outPathAndName = htmlPluginData.plugin.options.resourceName || '[name].[ext]'
@@ -55,6 +56,7 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
                 const $script = cheerio.load(script),
                     attr = $script('script').attr()
                 if(hasProtocal(attr.src)) return
+                if(attr.__raw || attr.__raw==='') return
                 const scriptFrom = path.resolve(htmlContext, attr.src)
                 const data = fs.readFileSync(scriptFrom)
                 let outPathAndName = htmlPluginData.plugin.options.resourceName || '[name].[ext]'

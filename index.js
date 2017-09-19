@@ -14,7 +14,7 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
     const linkRegex = new RegExp("(<link[^>]*href=([\'\"]*)(.*?)([\'\"]*).*?\>)", "ig"),
         scriptRegex = new RegExp("(<script[^>]*src=([\'\"]*)(.*?)([\'\"]*).*?\>(<\/script>)?)", "ig");
 
-    compiler.plugin('compilation', function (compilation, callback) {
+    compiler.plugin('compilation', function (compilation) {
 
         compilation.plugin('html-webpack-plugin-before-html-processing', function (htmlPluginData, callback) {
             const htmlContext = path.dirname(htmlPluginData.plugin.options.template.split('!')[1])
@@ -83,7 +83,6 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
 
             callback(null, htmlPluginData)
         })
-        callback()
     })
 }
 

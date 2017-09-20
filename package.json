@@ -1,6 +1,6 @@
 {
   "name": "html-resource-webpack-plugin",
-  "version": "1.0.12",
+  "version": "1.0.16",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -11,5 +11,12 @@
   "dependencies": {
     "cheerio": "^1.0.0-rc.2",
     "loader-utils": "^1.1.0"
+  },
+  "devDependencies": {
+    "css-loader": "^0.28.7",
+    "file-loader": "^0.11.2",
+    "html-loader": "^0.5.1",
+    "html-webpack-plugin": "^2.30.1",
+    "webpack": "^3.6.0"
   }
 }

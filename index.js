@@ -8,6 +8,7 @@ const childCompiler = require('./lib/compiler')
 function HtmlResourceWebpackPlugin() {
     "use strict";
     this.resourceList = {}
+    this.template = ''
 }
 
 function hasProtocal(route) {
@@ -22,12 +23,25 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
 
     compiler.plugin('compilation', function (compilation) {
         compilation.plugin('html-webpack-plugin-before-html-processing', function (htmlPluginData, callback) {
+            const stylePublicPath = htmlPluginData.plugin.options.resourceName.css,
+                scriptPublicPath = htmlPluginData.plugin.options.resourceName.js
+            if(stylePublicPath && stylePublicPath[0]==='/') {
+                throw new Error(`Invalid HtmlWebpackPlugin configuration object.\n - relative resourceName path expected, ${stylePublicPath} is absolute`)
+            }
+
+            if(scriptPublicPath && scriptPublicPath[0]==='/') {
+                throw new Error(`Invalid HtmlWebpackPlugin configuration object.\n - relative resourceName path expected, ${scriptPublicPath} is absolute`)
+            }
+
             let htmlResPluginData = Object.assign({}, htmlPluginData, {
                 rootContext: compiler.options.context,
                 context: path.dirname(htmlPluginData.plugin.options.template.split('!')[1]),
                 template: htmlPluginData.html,
                 compilation: compilation,
+                publicPath: compiler.options.output.publicPath || ''
             })
+
+            self.template = htmlPluginData.html
 
             const linkMatchResult = htmlPluginData.html.match(linkRegex) || []
             const scriptMatchResult = htmlPluginData.html.match(scriptRegex) || []
@@ -43,7 +57,7 @@ HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
                 callback(null, htmlPluginData)
             }).catch(err=>{
                 "use strict";
-                compilation.error.push(err)
+                compilation.errors.push(err)
                 callback(null, htmlPluginData)
             })
         })
@@ -55,12 +69,12 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
 
     const htmlContext = htmlResPluginData.context,
         context = htmlResPluginData.rootContext,
+        publicPath = htmlResPluginData.publicPath,
         compilation = htmlResPluginData.compilation;
 
     function dealImport(linkFrom, matchedLink) {
 
         return new Promise((res, rej)=>{
-            "use strict";
             linkFrom = linkFrom && linkFrom.split('?')[0] || ''
             if(!self.resourceList[linkFrom]) {
                 res(self.getInlineHtml(linkFrom, htmlContext, htmlResPluginData.plugin.options.filename, compilation))
@@ -68,14 +82,13 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
                 res(self.resourceList[linkFrom])
             }
         }).then(result=>{
-            "use strict";
             htmlResPluginData.template = htmlResPluginData.template.replace(matchedLink, function () {
                 return result
             })
             return true
         }).catch(e=>{
-            "use strict";
-            debugger
+            compilation.errors.push(e)
+            return true
         })
     }
 
@@ -87,8 +100,9 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
                 try{
                     data = fs.readFileSync(linkFrom)
                 } catch (e){
-                    compilation.error.push(e)
-                    return rawHref
+                    compilation.errors.push(e)
+                    res(rawHref)
+                    return
                 }
                 let outPathAndName = htmlResPluginData.plugin.options.resourceName.css || '[name].[ext]'
 
@@ -110,10 +124,12 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
                 res(self.resourceList[linkFrom])
             }
         }).then(result=>{
-            "use strict";
             htmlResPluginData.template = htmlResPluginData.template.replace(matchedLink, function () {
-                return `<link rel="stylesheet" href="${result}">`
+                return `<link rel="stylesheet" href="${publicPath + result}">`
             })
+            return true
+        }).catch(e=>{
+            compilation.errors.push(e)
             return true
         })
     }
@@ -135,8 +151,10 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
 
         if(attr.rel === 'import'){
             return dealImport(attrHref, link, rawHref)
-        } else {
+        } else if (attr.rel ==='stylesheet'){
             return dealNormalStyle(attrHref, link, rawHref)
+        } else {
+            return true
         }
     })
 }
@@ -146,18 +164,19 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileScript = function (scriptMatc
 
     const htmlContext = htmlResPluginData.context,
         context = htmlResPluginData.rootContext,
+        publicPath = htmlResPluginData.publicPath,
         compilation = htmlResPluginData.compilation;
 
     function dealNormalScript(scriptFrom, matchedScript, rawSrc) {
         return new Promise((res, rej)=>{
-            "use strict";
             if(!self.resourceList[scriptFrom]) {
                 let data
                 try {
                     data = fs.readFileSync(scriptFrom)
                 } catch (e) {
-                    compilation.error.push(e)
-                    return rawSrc
+                    compilation.errors.push(e)
+                    res(rawSrc)
+                    return
                 }
                 let outPathAndName = htmlResPluginData.plugin.options.resourceName.js || '[name].[ext]'
 
@@ -180,17 +199,17 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileScript = function (scriptMatc
                 res(self.resourceList[scriptFrom])
             }
         }).then(result=>{
-            "use strict";
             htmlResPluginData.template = htmlResPluginData.template.replace(matchedScript, function () {
-                return `<script src="${result}"></script>`
+                return `<script src="${publicPath + result}"></script>`
             })
+            return true
+        }).catch(e=>{
+            compilation.errors.push(e)
             return true
         })
     }
 
     return scriptMatchResult.map(script=>{
-        "use strict";
-
         const $script = cheerio.load(script),
             attr = $script('script').attr()
         let attrSrc = attr.src, rawSrc = attrSrc
@@ -212,15 +231,13 @@ HtmlResourceWebpackPlugin.prototype.getInlineHtml = function (template, context,
     const self = this
     return childCompiler.compileTemplate(template, context, outputFilename, compilation)
         .catch(err=>{
-            "use strict";
-            compilation.error.push(err)
+            compilation.errors.push(err)
             return {
                 content: 'ERROR',
                 outputName: self.options.filename
             }
         })
         .then(compilationResult=>{
-            "use strict";
             return self.evaluateCompilationResult(compilation, compilationResult.content)
         })
 }

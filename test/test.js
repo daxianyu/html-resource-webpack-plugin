@@ -40,6 +40,7 @@ module.exports = {
     },
     output: {
         path: path.resolve(pwd, './dist'),
+        publicPath: '',
         filename: 'statics/script/[name]_[chunkhash:6].js'
     },
     plugins: [

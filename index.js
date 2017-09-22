@@ -18,8 +18,8 @@ function hasProtocal(route) {
 HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
     const self = this
 
-    const linkRegex = new RegExp("(<link[^>]*href=([\'\"]*)(.*?)([\'\"]*).*?\>)", "ig"),
-        scriptRegex = new RegExp("(<script[^>]*src=([\'\"]*)(.*?)([\'\"]*).*?\>(<\/script>)?)", "ig");
+    const linkRegex = new RegExp("[^-](<link[^>]*href=([\'\"]*)(.*?)([\'\"]*).*?\>)", "ig"),
+        scriptRegex = new RegExp("[^-](<script[^>]*src=([\'\"]*)(.*?)([\'\"]*).*?\>(<\/script>)?)", "ig");
 
     compiler.plugin('compilation', function (compilation) {
         compilation.plugin('html-webpack-plugin-before-html-processing', function (htmlPluginData, callback) {

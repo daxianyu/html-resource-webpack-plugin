@@ -15,6 +15,27 @@ function hasProtocal(route) {
     return route.indexOf('http://') === 0 || route.indexOf('https://') === 0 || route.indexOf('//') === 0;
 }
 
+const NODE_ENV = process.env.NODE_ENV || 'production'
+
+function isSkipped(skipAttr){
+    "use strict";
+    let skip
+    if(skipAttr){
+        if(skipAttr === NODE_ENV || skipAttr === 'true'){
+            skip = true
+        } else if(skipAttr[0]==='!' && skipAttr !== ('!'+NODE_ENV)){
+            skip = true
+        } else {
+            skip = false
+        }
+    } else if(skipAttr===''){
+        skip = true
+    } else {
+        skip = false
+    }
+    return skip
+}
+
 HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
     const self = this
 
@@ -92,9 +113,13 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
         })
     }
 
-    function dealNormalStyle(linkFrom, matchedLink, rawHref) {
+    function dealNormalStyle(linkFrom, matchedLink, rawHref, skip) {
         return new Promise((res, rej)=>{
             "use strict";
+            if(skip){
+                res()
+                return
+            }
             if(!self.resourceList[linkFrom]) {
                 let data
                 try{
@@ -125,6 +150,7 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
             }
         }).then(result=>{
             htmlResPluginData.template = htmlResPluginData.template.replace(matchedLink, function () {
+                if(skip) return ''
                 return `<link rel="stylesheet" href="${publicPath + result}">`
             })
             return true
@@ -138,7 +164,7 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
         "use strict";
         const $link = cheerio.load(link),
             attr = $link('link').attr()
-        let attrHref = attr.href, rawHref = attrHref
+        let attrHref = attr.href, rawHref = attrHref, skip = isSkipped(attr.skip)
 
         if(hasProtocal(attrHref)) return true
         if(attr.__raw || attr.__raw==='') return true
@@ -152,7 +178,7 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
         if(attr.rel === 'import'){
             return dealImport(attrHref, link, rawHref)
         } else if (attr.rel ==='stylesheet'){
-            return dealNormalStyle(attrHref, link, rawHref)
+            return dealNormalStyle(attrHref, link, rawHref, skip)
         } else {
             return true
         }
@@ -167,8 +193,12 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileScript = function (scriptMatc
         publicPath = htmlResPluginData.publicPath,
         compilation = htmlResPluginData.compilation;
 
-    function dealNormalScript(scriptFrom, matchedScript, rawSrc) {
+    function dealNormalScript(scriptFrom, matchedScript, rawSrc, skip) {
         return new Promise((res, rej)=>{
+            if(skip){
+                res()
+                return
+            }
             if(!self.resourceList[scriptFrom]) {
                 let data
                 try {
@@ -200,6 +230,7 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileScript = function (scriptMatc
             }
         }).then(result=>{
             htmlResPluginData.template = htmlResPluginData.template.replace(matchedScript, function () {
+                if(skip) return ''
                 return `<script src="${publicPath + result}"></script>`
             })
             return true
@@ -212,7 +243,7 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileScript = function (scriptMatc
     return scriptMatchResult.map(script=>{
         const $script = cheerio.load(script),
             attr = $script('script').attr()
-        let attrSrc = attr.src, rawSrc = attrSrc
+        let attrSrc = attr.src, rawSrc = attrSrc, skip = isSkipped(attr.skip)
 
         if(hasProtocal(attrSrc)) return true
         if(attr.__raw || attr.__raw==='') return true
@@ -223,7 +254,7 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileScript = function (scriptMatc
             attrSrc = path.resolve(htmlContext, attrSrc)
         }
 
-        return dealNormalScript(attrSrc, script, rawSrc)
+        return dealNormalScript(attrSrc, script, rawSrc, skip)
     })
 }
 

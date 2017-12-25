@@ -15,7 +15,7 @@ function hasProtocal(route) {
     return route.indexOf('http://') === 0 || route.indexOf('https://') === 0 || route.indexOf('//') === 0;
 }
 
-const NODE_ENV = process.env.NODE_ENV || 'production'
+const NODE_ENV = process.env.NODE_ENV || ''
 
 function isSkipped(skipAttr){
     "use strict";
@@ -34,6 +34,84 @@ function isSkipped(skipAttr){
         skip = false
     }
     return skip
+}
+
+const ResourceType = {
+    link: 'href',
+    script: 'src'
+}
+
+function stringifyPath(attr, resourceType){
+    let attrStr = '', skipped = ['skip', '__raw', 'rawSrc']
+    for (let item in attr){
+        if(skipped.indexOf(item)===-1){
+            if(attr[item]){
+                attrStr += `${item}="${attr[item]}" `
+            } else {
+                attrStr += item
+            }
+        }
+    }
+    if(resourceType === 'link') {
+        return `<${resourceType} ${attrStr} />`
+    }
+    return `<${resourceType} ${attrStr}></${resourceType}>`
+}
+
+function compileResource(htmlResPluginData, matchedResource, attr, resourceType) {
+    const compilation = htmlResPluginData.compilation,
+        publicPath = htmlResPluginData.publicPath
+
+    const rType = ResourceType[resourceType]
+    return new Promise((res, rej)=>{
+        if(attr.skip){
+            res()
+            return
+        }
+        if(!this.resourceList[attr[rType]]) {         // 如果没有缓存，则去获取
+            let data
+            try {
+                data = fs.readFileSync(attr[rType])
+            } catch (e) {
+                compilation.errors.push(e)
+                res(attr.rawSrc)
+                return
+            }
+            let outPathAndName = htmlResPluginData.plugin.options.resourceName.js || '[name].[ext]'
+
+            const scriptName = loaderUtils.interpolateName(
+                {resourcePath: attr[rType]},
+                outPathAndName,
+                {content: data})
+
+            compilation.assets[scriptName] = {
+                size: function () {
+                    return data.length
+                },
+                source: function () {
+                    return data
+                }
+            }
+            this.resourceList[attr[rType]] = scriptName
+            res(scriptName)
+        } else {
+            res(this.resourceList[attr[rType]])
+        }
+    }).then(result=>{
+        htmlResPluginData.template = htmlResPluginData.template.replace(matchedResource, function () {
+            if(attr.skip) return ''
+            if(attr.__raw || attr.__raw==='') {
+                attr[rType] = attr.rawSrc
+                return stringifyPath(attr, resourceType)
+            }
+            attr[rType] = publicPath + result
+            return stringifyPath(attr, resourceType)
+        })
+        return true
+    }).catch(e=>{
+        compilation.errors.push(e)
+        return true
+    })
 }
 
 HtmlResourceWebpackPlugin.prototype.apply = function (compiler) {
@@ -90,17 +168,16 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
 
     const htmlContext = htmlResPluginData.context,
         context = htmlResPluginData.rootContext,
-        publicPath = htmlResPluginData.publicPath,
         compilation = htmlResPluginData.compilation;
 
-    function dealImport(linkFrom, matchedLink) {
+    function dealImport(attr, matchedLink) {
 
         return new Promise((res, rej)=>{
-            linkFrom = linkFrom && linkFrom.split('?')[0] || ''
-            if(!self.resourceList[linkFrom]) {
-                res(self.getInlineHtml(linkFrom, htmlContext, htmlResPluginData.plugin.options.filename, compilation))
+            attr.href = attr.href && attr.href.split('?')[0] || ''
+            if(!self.resourceList[attr.href]) {
+                res(self.getInlineHtml(attr.href, htmlContext, htmlResPluginData.plugin.options.filename, compilation))
             } else {
-                res(self.resourceList[linkFrom])
+                res(self.resourceList[attr.href])
             }
         }).then(result=>{
             htmlResPluginData.template = htmlResPluginData.template.replace(matchedLink, function () {
@@ -113,148 +190,49 @@ HtmlResourceWebpackPlugin.prototype.promisedCompileStyle = function (linkMatchRe
         })
     }
 
-    function dealNormalStyle(linkFrom, matchedLink, rawHref, skip) {
-        return new Promise((res, rej)=>{
-            "use strict";
-            if(skip){
-                res()
-                return
-            }
-            if(!self.resourceList[linkFrom]) {
-                let data
-                try{
-                    data = fs.readFileSync(linkFrom)
-                } catch (e){
-                    compilation.errors.push(e)
-                    res(rawHref)
-                    return
-                }
-                let outPathAndName = htmlResPluginData.plugin.options.resourceName.css || '[name].[ext]'
-
-                const linkName = loaderUtils.interpolateName(
-                    {resourcePath: linkFrom},
-                    outPathAndName,
-                    {content: data})
-                compilation.assets[linkName] = {
-                    size: function () {
-                        return data.length
-                    },
-                    source: function () {
-                        return data
-                    }
-                }
-                self.resourceList[linkFrom] = linkName
-                res(linkName)
-            } else {
-                res(self.resourceList[linkFrom])
-            }
-        }).then(result=>{
-            htmlResPluginData.template = htmlResPluginData.template.replace(matchedLink, function () {
-                if(skip) return ''
-                return `<link rel="stylesheet" href="${publicPath + result}">`
-            })
-            return true
-        }).catch(e=>{
-            compilation.errors.push(e)
-            return true
-        })
-    }
-
-    return linkMatchResult.map(link=>{
+    return linkMatchResult.map(matchedLink=>{
         "use strict";
-        const $link = cheerio.load(link),
+        const $link = cheerio.load(matchedLink),
             attr = $link('link').attr()
-        let attrHref = attr.href, rawHref = attrHref, skip = isSkipped(attr.skip)
+        attr.skip = isSkipped(attr.skip)
+        attr.rawSrc = attr.href
 
-        if(hasProtocal(attrHref)) return true
-        if(attr.__raw || attr.__raw==='') return true
-
-        if(attrHref[0]==='/') {
-            attrHref = context + attrHref
+        if(hasProtocal(attr.href)) return true
+        if(attr.href[0]==='/') {
+            attr.href = context + attr.href
         } else {
-            attrHref = path.resolve(htmlContext, attrHref)
+            attr.href = path.resolve(htmlContext, attr.href)
         }
 
         if(attr.rel === 'import'){
-            return dealImport(attrHref, link, rawHref)
+            return dealImport(attr, matchedLink)
         } else if (attr.rel ==='stylesheet'){
-            return dealNormalStyle(attrHref, link, rawHref, skip)
+            return compileResource.call(this, htmlResPluginData, matchedLink, attr, 'link')
         } else {
-            return true
+            return compileResource.call(this, htmlResPluginData, matchedLink, attr, 'link')
         }
     })
 }
 
+
 HtmlResourceWebpackPlugin.prototype.promisedCompileScript = function (scriptMatchResult, htmlResPluginData) {
-    const self = this;
 
     const htmlContext = htmlResPluginData.context,
-        context = htmlResPluginData.rootContext,
-        publicPath = htmlResPluginData.publicPath,
-        compilation = htmlResPluginData.compilation;
-
-    function dealNormalScript(scriptFrom, matchedScript, rawSrc, skip) {
-        return new Promise((res, rej)=>{
-            if(skip){
-                res()
-                return
-            }
-            if(!self.resourceList[scriptFrom]) {
-                let data
-                try {
-                    data = fs.readFileSync(scriptFrom)
-                } catch (e) {
-                    compilation.errors.push(e)
-                    res(rawSrc)
-                    return
-                }
-                let outPathAndName = htmlResPluginData.plugin.options.resourceName.js || '[name].[ext]'
-
-                const scriptName = loaderUtils.interpolateName(
-                    {resourcePath: scriptFrom},
-                    outPathAndName,
-                    {content: data})
-
-                compilation.assets[scriptName] = {
-                    size: function () {
-                        return data.length
-                    },
-                    source: function () {
-                        return data
-                    }
-                }
-                self.resourceList[scriptFrom] = scriptName
-                res(scriptName)
-            } else {
-                res(self.resourceList[scriptFrom])
-            }
-        }).then(result=>{
-            htmlResPluginData.template = htmlResPluginData.template.replace(matchedScript, function () {
-                if(skip) return ''
-                return `<script src="${publicPath + result}"></script>`
-            })
-            return true
-        }).catch(e=>{
-            compilation.errors.push(e)
-            return true
-        })
-    }
+        context = htmlResPluginData.rootContext
 
     return scriptMatchResult.map(script=>{
         const $script = cheerio.load(script),
             attr = $script('script').attr()
-        let attrSrc = attr.src, rawSrc = attrSrc, skip = isSkipped(attr.skip)
+        attr.skip = isSkipped(attr.skip)
+        attr.rawSrc = attr.src
 
-        if(hasProtocal(attrSrc)) return true
-        if(attr.__raw || attr.__raw==='') return true
-
-        if(attrSrc[0]==='/') {
-            attrSrc = context + attrSrc
+        if(hasProtocal(attr.src)) return true
+        if(attr.src[0]==='/') {
+            attr.src = context + attr.src
         } else {
-            attrSrc = path.resolve(htmlContext, attrSrc)
+            attr.src = path.resolve(htmlContext, attr.src)
         }
-
-        return dealNormalScript(attrSrc, script, rawSrc, skip)
+        return compileResource.call(this, htmlResPluginData, script, attr, 'script')
     })
 }
 

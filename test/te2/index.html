@@ -14,8 +14,11 @@
   asdfddfd3
 </div>
 <link rel="import" href="./to-injected.html?__inline">
-<script src="http://res.wx.qq.com/open/js/jweixin-1.2.0.js"></script>
-<script src="../../node_modules/acorn/dist/acorn.js" skip="production"></script>
+<script src="http://res.wx.qq.com/open/js/jweixin-1.2.0.js" defer></script>
+<!--<script src="../../node_modules/acorn/dist/acorn.js" skip="production" defer __raw></script>-->
+<script src="../../node_modules/acorn/dist/acorn_loose.es.js" skip="production" defer ></script>
+<script src="../../node_modules/acorn/dist/acorn_loose.js" skip="production" async ></script>
+<script src="../../node_modules/acorn/dist/acorn_loose.js" skip="!production" async ></script>
 <script src="../../node_modules/acorn/dist/acorn.es.js"></script>
 </body>
 </html>
